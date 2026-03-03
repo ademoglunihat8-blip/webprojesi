@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Veya gereksinime göre "mysql", "sqlite" eklenebilir
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 1. KULLANICI / YÖNETİCİ MODELLERİ (AUTH)
+// ============================================
+
+enum Role {
+  ADMIN       // Tam yetkili süper yönetici
+  EDITOR      // Sadece haber girebilen editör
+  MEMBER      // Sendika üyesi (Gelecekteki portal için)
+}
+
+model User {
+  id            String    @id @default(uuid())
+  firstName     String
+  lastName      String
+  email         String    @unique
+  passwordHash  String
+  tcNo          String?   @unique // TC Kimlik No (e-Devlet validasyonu için)
+  role          Role      @default(MEMBER)
+  
+  // Relations
+  news          News[]    @relation("UserNews")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ============================================
+// 2. İÇERİK YÖNETİMİ (HABERLER & DUYURULAR)
+// ============================================
+
+enum NewsCategory {
+  TIS           // Toplu İş Sözleşmesi
+  ETKINLIK      // Etkinlik & Toplantı
+  MEVZUAT       // Hukuk & Mevzuat
+  EGITIM        // Eğitim
+  GENEL         // Genel Duyurular
+}
+
+enum NewsStatus {
+  DRAFT         // Taslak
+  PUBLISHED     // Yayında
+  ARCHIVED      // Arşivlenmiş
+}
+
+model News {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique // SEO dostu URL için (örn: /haberler/tis-gorusmeleri)
+  content     String       @db.Text
+  excerpt     String?      // Kısa özet
+  imageUrl    String?      // Kapak fotoğrafı URL'si
+  
+  category    NewsCategory @default(GENEL)
+  status      NewsStatus   @default(DRAFT)
+  
+  // Relations
+  authorId    String
+  author      User         @relation("UserNews", fields: [authorId], references: [id])
+  
+  publishedAt DateTime?    // İleri tarihli yayınlama veya yayınlanma tarihi
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+// ============================================
+// 3. TEŞKİLAT VE KİŞİ YÖNETİMİ
+// ============================================
+
+model BoardMember {
+  id          String    @id @default(uuid())
+  firstName   String
+  lastName    String
+  title       String    // Genel Başkan, Genel Başkan Yardımcısı vs.
+  role        String?   // Teşkilatlanma, Mali İşler vb.
+  quote       String?   @db.Text
+  imageUrl    String?
+  orderIndex  Int       @default(0) // Listeleme sırası
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============================================
+// 4. ŞUBE VE HARİTA BİLGİLERİ
+// ============================================
+
+model Branch {
+  id          String    @id @default(uuid())
+  name        String    // Marmara Bölge Şubesi
+  city        String    // İstanbul
+  address     String    @db.Text
+  phone       String
+  email       String?
+  
+  // Harita koordinatları (Map Pin pozisyonları veya gerçek Enlem/Boylam)
+  mapTop      String?   // Örn: "30%" (Frontend için)
+  mapLeft     String?   // Örn: "25%"
+  latitude    Float?
+  longitude   Float?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============================================
+// 5. İLETİŞİM & BİLDİRİM TALEPLERİ
+// ============================================
+
+model ContactRequest {
+  id          String    @id @default(uuid())
+  fullName    String
+  email       String
+  phone       String?
+  subject     String
+  message     String    @db.Text
+  isRead      Boolean   @default(false)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Chatbot Logları (Gelecek geliştirme için opsiyonel)
+model ChatbotLog {
+  id          String    @id @default(uuid())
+  sessionId   String
+  userMessage String    @db.Text
+  botResponse String    @db.Text
+  
+  createdAt   DateTime  @default(now())
+}
