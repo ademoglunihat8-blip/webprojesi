@@ -30,27 +30,68 @@ export default function Chatbot() {
         scrollToBottom();
     }, [messages, isOpen]);
 
-    const handleSend = () => {
-        if (!input.trim()) return;
+    const [isTyping, setIsTyping] = useState(false);
 
+    const handleSend = async () => {
+        if (!input.trim() || isTyping) return;
+
+        const userText = input;
         const newUserMsg: Message = {
             id: Date.now(),
-            text: input,
+            text: userText,
             sender: "user",
         };
 
-        setMessages((prev) => [...prev, newUserMsg]);
-        setInput("");
+        const botMsgId = Date.now() + 1;
+        const placeholderBotMsg: Message = {
+            id: botMsgId,
+            text: "",
+            sender: "bot",
+        };
 
-        // Simulate bot response
-        setTimeout(() => {
-            const botResponse: Message = {
-                id: Date.now() + 1,
-                text: "Mesajınızı aldık. İlgili temsilcimiz en kısa sürede size dönüş yapacaktır. Şimdilik bu asistan geliştirme aşamasındadır.",
-                sender: "bot",
-            };
-            setMessages((prev) => [...prev, botResponse]);
-        }, 1000);
+        setMessages((prev) => [...prev, newUserMsg, placeholderBotMsg]);
+        setInput("");
+        setIsTyping(true);
+
+        try {
+            // API'ye geçmiş mesajları formatlayıp gönder (boş mesajları filtrele)
+            const chatHistory = messages.filter(m => m.text).map(m => ({
+                role: m.sender === "user" ? "user" : "assistant",
+                content: m.text
+            })).concat({ role: "user", content: userText });
+
+            const response = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: chatHistory }),
+            });
+
+            if (!response.ok) throw new Error();
+
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error();
+
+            const decoder = new TextDecoder();
+            let accumulatedText = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                accumulatedText += chunk;
+
+                setMessages((prev) =>
+                    prev.map(m => m.id === botMsgId ? { ...m, text: accumulatedText } : m)
+                );
+            }
+        } catch (err) {
+            setMessages((prev) =>
+                prev.map(m => m.id === botMsgId ? { ...m, text: "Üzgünüm, şu an bağlantı kuramıyorum. Lütfen daha sonra tekrar deneyiniz." } : m)
+            );
+        } finally {
+            setIsTyping(false);
+        }
     };
 
     return (
@@ -85,23 +126,39 @@ export default function Chatbot() {
                     {/* Messages Area */}
                     <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col gap-4">
                         {messages.map((msg) => (
-                            <div
-                                key={msg.id}
-                                className={`flex items-end gap-2 ${msg.sender === "user" ? "flex-row-reverse" : "flex-row"}`}
-                            >
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.sender === "user" ? "bg-navy" : "bg-gold"}`}>
-                                    {msg.sender === "user" ? <User className="w-4 h-4 text-white" /> : <Bot className="w-5 h-5 text-navy" />}
-                                </div>
+                            msg.text || (msg.sender === "bot" && isTyping && msg === messages[messages.length - 1]) ? (
                                 <div
-                                    className={`px-4 py-3 rounded-2xl max-w-[75%] shadow-sm ${msg.sender === "user"
+                                    key={msg.id}
+                                    className={`flex items-end gap-2 ${msg.sender === "user" ? "flex-row-reverse" : "flex-row"}`}
+                                >
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.sender === "user" ? "bg-navy" : "bg-gold"}`}>
+                                        {msg.sender === "user" ? <User className="w-4 h-4 text-white" /> : <Bot className="w-5 h-5 text-navy" />}
+                                    </div>
+                                    <div
+                                        className={`px-4 py-3 rounded-2xl max-w-[75%] shadow-sm ${msg.sender === "user"
                                             ? "bg-navy text-white rounded-br-none"
                                             : "bg-white text-gray-800 border border-gray-100 rounded-bl-none"
-                                        }`}
-                                >
-                                    <p className="text-sm">{msg.text}</p>
+                                            }`}
+                                    >
+                                        <p className="text-sm whitespace-pre-wrap">{msg.text || (isTyping && msg === messages[messages.length - 1] ? "..." : "")}</p>
+                                    </div>
+                                </div>
+                            ) : null
+                        ))}
+                        {isTyping && messages[messages.length - 1]?.text === "" && (
+                            <div className="flex items-end gap-2">
+                                <div className="w-8 h-8 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
+                                    <Bot className="w-5 h-5 text-navy" />
+                                </div>
+                                <div className="bg-white text-gray-400 border border-gray-100 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                                        <div className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                                        <div className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                                    </div>
                                 </div>
                             </div>
-                        ))}
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
 

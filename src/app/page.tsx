@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import HeroSlider from "@/components/HeroSlider";
+import FaaliyetlerSection from "@/components/FaaliyetlerSection";
 import OrganizationSection from "@/components/OrganizationSection";
 import VisionSection from "@/components/VisionSection";
 import ContactMapSection from "@/components/ContactMapSection";
@@ -13,6 +14,7 @@ export default function Home() {
 
       <main>
         <HeroSlider />
+        <FaaliyetlerSection />
         <VisionSection />
         <OrganizationSection />
         <ContactMapSection />
